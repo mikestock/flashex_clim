@@ -4,8 +4,11 @@ import h5py
 import os, glob
 
 
-inPaths = sorted( glob.glob('/localdata/mstock/flashEx/climatology/pulses/*csv') )
+inPath  = 'lofar_lxflash_100.state'
+outPath = 'storms_flashes_100.h5'
 lofarPt = 52.91426, 6.86933 
+searchRadius = 100000
+stormTimeThreshold = 3600*2
 
 class Storm( ):
     def __init__( self, pulse ):
@@ -15,7 +18,7 @@ class Storm( ):
         self.lon       = pulse[3]
         self.pulses    = [pulse]
     def contains( self, pulse ):
-        if pulse[1] < self.startTime-3600 or pulse[1] > self.stopTime+3600:
+        if pulse[1] < self.startTime-stormTimeThreshold or pulse[1] > self.stopTime+stormTimeThreshold:
             #this pulse isn't inside the timebounds for being part of this storm
             return False
         else:
@@ -27,10 +30,16 @@ class Storm( ):
 
 storms = []
 
-tlnData = lx.Report( 'lofar_lxflash.state')
+tlnData = lx.Report( inPath )
 tlnData.truncate( tlnData.time.argsort() )
 
 for iTln in range( len( tlnData.time) ):
+    #what's the distance to this flash 
+    D = lx.pythagorean_distance( lofarPt, (tlnData.lat[iTln], tlnData.lon[iTln]))
+    if D > searchRadius: 
+        continue
+
+    #put this flash into a storm
     flash = tlnData._arr[iTln].copy()
     stormFound = False
     for s in storms:
@@ -46,46 +55,7 @@ for iTln in range( len( tlnData.time) ):
         stormKey = lx.epoch2timestamp( s.startTime ) 
 
 
-
-# for inPath in inPaths:
-#     print( inPath )
-#     fh = open( inPath, 'r' )
-#     header = fh.readline()
-
-#     l = fh.readline()
-#     while l.strip() != '':
-#         pulse = lx.Pulse( l, format='csv', header=header)
-
-#         #calculate distance from superterp
-#         D = lx.oblate_distance( lofarPt, [pulse.lat, pulse.lon] )
-#         if D > 50000:
-#             l = fh.readline()
-#             continue
-
-#         report.append( pulse )
-
-#         pulse = report._arr[-1].copy()
-#         stormFound = False
-        # for s in storms:
-        #     if s.contains( pulse ):
-        #         s.append( pulse )
-        #         stormFound = True
-        #         break
-        # if not stormFound:
-        #     print( 'new storm' )
-        #     #make a new one
-        #     s = Storm( pulse )
-        #     storms.append( s )
-        #     stormKey = lx.epoch2timestamp( s.startTime )
-
-#         l = fh.readline()
-
-# sys.exit()
-#2017-07-19T14:34:19
-#store the report state
-# report.save_state( '/localdata/mstock/flashEx/climatology/lofar_superterp.state' )
-#store the storms, we'll put them in a big hdf file
-hdfFile = h5py.File( '/localdata/mstock/flashEx/climatology/storms_flashes.h5', 'w' )
+hdfFile = h5py.File( outPath , 'w' )
 for s in storms:
     stormKey = lx.epoch2timestamp( s.startTime )
     print( stormKey )

@@ -4,7 +4,7 @@ import h5py
 import matplotlib.pyplot as plt
 import time
 
-hdfFile = h5py.File( '/localdata/mstock/flashEx/climatology/storms.h5', 'r' )
+hdfFile = h5py.File( 'storms_flashes_50.h5', 'r' )
 
 # months = [0,31,28,31,30,31,30,31,31,30,31,30,31]
 months = [  0,  31,  59,  90, 120, 151, 181, 212, 243, 273, 304, 334, 365]
@@ -12,7 +12,8 @@ monthNames = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov',
 figSize = 6.4,3.5
 
 keyStart = '2015-01-11T00:00:00'
-years = 10
+years    = 10
+opRange  = 171, 250 #this is when we're supposed to be active, in Julian daya
 
 def flash_times( storm ):
     flashTime = 0
@@ -20,10 +21,60 @@ def flash_times( storm ):
     pulseTimes = storm[:,1]
     pulseTimes.sort()
     for p in pulseTimes:
-        if p-flashTime > 1:
+        if p-flashTime > .1:
             flashes.append( p )
         flashTime = p
     return flashes 
+
+# stormThreshs    = {0:0, 10:0, 50:0, 100:0}
+flashesPerStorm = []
+stormDurations  = []
+stormWeeks      = []
+#calculate some basic statistics on the storms
+for stormKey in hdfFile:
+    if stormKey < keyStart: continue
+    #convert the key into a time_tup
+    stormTime = time.strptime( stormKey, '%Y-%m-%dT%H:%M:%S' )
+    if stormTime.tm_yday < opRange[0] or stormTime.tm_yday > opRange[1]:
+        #this storm is not in our observation period
+        continue
+    storm = hdfFile[stormKey]
+    #calculate some basics
+    flashTimes    = flash_times( storm )
+    numFlashes    = len( flashTimes )
+    duration      = max(flashTimes)-min(flashTimes)
+    flashesPerStorm.append( numFlashes )
+    stormDurations.append( duration )
+
+bins = [0,1,3,10,30,100,300,1000,3000,10000]
+fig, ax1 = plt.subplots( 1,1 )
+plt.hist( flashesPerStorm, bins=bins, weights=[1./years]*len(flashesPerStorm) )
+plt.xlim( bins[1], bins[-1])
+plt.semilogx()
+plt.axvline( np.median( flashesPerStorm ), color='k', ls='--')
+plt.xlabel( 'Flashes Per Storm' )
+plt.ylabel( 'Storms/Year' )
+plt.title( 'Storm Size Mean: %i, Median: %i'%(np.mean( flashesPerStorm ),np.median( flashesPerStorm )) )
+
+#cumulative distribtuion
+
+h = np.histogram( flashesPerStorm, bins=bins, weights=[1./years]*len(flashesPerStorm))
+ax2 = plt.twinx( ax1 )
+ax2.yaxis.label.set_color('tab:orange')
+ax2.tick_params(axis='y', colors='tab:orange')
+ax2.spines['right'].set_color('tab:orange')
+ax2.plot( h[1][1:], len( flashesPerStorm )/years-np.cumsum( h[0] ), color='tab:orange' )
+#draw some horizontal lines
+flashesPerStorm = np.array( flashesPerStorm) 
+x = [10, 50, 100]
+y = [(flashesPerStorm>10).sum()/years, (flashesPerStorm>50).sum()/years, (flashesPerStorm>100).sum()/years,]
+for i in range( len(y) ):
+    ax2.plot( [x[i],bins[-1]],[y[i],y[i]], color='tab:orange', ls='--' )
+    ax2.text( bins[-1],y[i],'%i'%x[i], color='tab:orange',  ha='right', va='bottom')
+ax2.set_ylabel( 'Storms/Year > #' )
+
+
+sys.exit()
 
 
 flashesPerStorm = []
