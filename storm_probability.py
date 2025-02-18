@@ -4,7 +4,8 @@ import h5py
 import matplotlib.pyplot as plt
 import time
 
-hdfFile = h5py.File( 'storms_flashes_50.h5', 'r' )
+hdfFile = h5py.File( 'storms_flashes_100.h5', 'r' )
+outKey  = 100
 
 # months = [0,31,28,31,30,31,30,31,31,30,31,30,31]
 months = [  0,  31,  59,  90, 120, 151, 181, 212, 243, 273, 304, 334, 365]
@@ -46,18 +47,20 @@ for stormKey in hdfFile:
     flashesPerStorm.append( numFlashes )
     stormDurations.append( duration )
 
+
+###################
+# Flashes per event, and events with more than N flashes
 bins = [0,1,3,10,30,100,300,1000,3000,10000]
 fig, ax1 = plt.subplots( 1,1 )
 plt.hist( flashesPerStorm, bins=bins, weights=[1./years]*len(flashesPerStorm) )
 plt.xlim( bins[1], bins[-1])
 plt.semilogx()
 plt.axvline( np.median( flashesPerStorm ), color='k', ls='--')
-plt.xlabel( 'Flashes Per Storm' )
-plt.ylabel( 'Storms/Year' )
-plt.title( 'Storm Size Mean: %i, Median: %i'%(np.mean( flashesPerStorm ),np.median( flashesPerStorm )) )
+plt.xlabel( 'Flashes Per Events' )
+plt.ylabel( 'Events/Year' )
+plt.title( 'Events Size Mean: %i, Median: %i'%(np.mean( flashesPerStorm ),np.median( flashesPerStorm )) )
 
 #cumulative distribtuion
-
 h = np.histogram( flashesPerStorm, bins=bins, weights=[1./years]*len(flashesPerStorm))
 ax2 = plt.twinx( ax1 )
 ax2.yaxis.label.set_color('tab:orange')
@@ -71,9 +74,40 @@ y = [(flashesPerStorm>10).sum()/years, (flashesPerStorm>50).sum()/years, (flashe
 for i in range( len(y) ):
     ax2.plot( [x[i],bins[-1]],[y[i],y[i]], color='tab:orange', ls='--' )
     ax2.text( bins[-1],y[i],'%i'%x[i], color='tab:orange',  ha='right', va='bottom')
-ax2.set_ylabel( 'Storms/Year > #' )
+ax2.set_ylabel( 'Events/Year > #' )
+plt.savefig( 'Flashes_per_Event_%i.png'%outKey, dpi=200 )
 
+#####################
+# Hours per event, and event longer than duration
+stormDurations = np.array( stormDurations )
+bins = np.arange( 10 )
+fig, ax1 = plt.subplots( 1,1 )
+ax1.hist( stormDurations/3600, bins=bins, weights=[1./years]*len(flashesPerStorm) )
+m = flashesPerStorm>50
+ax1.hist( stormDurations[m]/3600, bins=bins, weights=[1./years]*len(flashesPerStorm[m]), color=(0,0,0,.25) )
+ax1.set_xlim( bins[0], bins[-1])
+ax1.axvline( np.median( stormDurations/3600 ), color='k', ls='--')
+ax1.set_xlabel( 'Hours Per Event' )
+ax1.set_ylabel( 'Events/Year' )
+ax1.set_title( 'Events Duration Mean: %1.1f, Median: %1.1f hours'%(np.mean( stormDurations/3600 ),np.median( stormDurations/3600 )) )
 
+#cumulative
+h = np.histogram( stormDurations/3600, bins=bins, weights=[1./years]*len(flashesPerStorm))
+ax2 = plt.twinx( ax1 )
+ax2.yaxis.label.set_color('tab:orange')
+ax2.tick_params(axis='y', colors='tab:orange')
+ax2.spines['right'].set_color('tab:orange')
+cum = np.append( 0, np.cumsum( h[0]) )
+ax2.plot( h[1][:], len( flashesPerStorm )/years-cum, color='tab:orange' )
+#draw some horizontal lines
+x = [1, 2, 4]
+y = [(stormDurations/3600>x[0]).sum()/years, (stormDurations/3600>x[1]).sum()/years, (stormDurations/3600>x[2]).sum()/years,]
+for i in range( len(y) ):
+    ax2.plot( [x[i],bins[-1]],[y[i],y[i]], color='tab:orange', ls='--' )
+    ax2.text( bins[-1],y[i],'%i'%x[i], color='tab:orange',  ha='right', va='bottom')
+ax2.set_ylabel( 'Events/Year > #' )
+
+plt.savefig( 'Duration_per_Event_%i.png'%outKey, dpi=200 )
 sys.exit()
 
 
